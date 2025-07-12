@@ -1,0 +1,6 @@
+{
+  "dependencies": {
+    "ollama": "^0.5.16",
+    "puppeteer": "^24.12.1"
+  }
+}
