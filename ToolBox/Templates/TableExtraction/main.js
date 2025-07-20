@@ -1,11 +1,9 @@
-import { TableScraper } from "./tableScraper";
+import { TableScraper } from "./tableScraper.js";
 
 function main(url, selectors) {
   const scraper = new TableScraper();
   scraper.gettingReady(url, selectors);
-  scraper.init();
   scraper.extract();
-  scraper.close();
 }
 
 const url =
@@ -17,6 +15,6 @@ const selectors = {
   tbody: "tbody",
   row: "tr",
   cellSelector: "td",
-  nextLink: "a.next",
+  nextLink: null,
 };
-main(url);
+main(url, selectors);
