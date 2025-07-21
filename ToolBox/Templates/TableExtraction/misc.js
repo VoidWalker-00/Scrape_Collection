@@ -26,3 +26,33 @@ export function generateProjectName(baseDir, url) {
 
   return finalName;
 }
+
+/**
+ * Pretty-print a table given header and body rows
+ * @param {string[]} header - Array of column names
+ * @param {string[][]} body - Array of row arrays
+ * @returns {string} - Table as string
+ */
+export default function printTable(header, body) {
+  // Combine header and body to compute max column widths
+  const rows = [header, ...body];
+  const colWidths = header.map((_, i) =>
+    Math.max(...rows.map((row) => (row[i] ? String(row[i]).length : 0))),
+  );
+
+  // Function to print a row
+  const printRow = (row) =>
+    "| " +
+    row
+      .map((cell, i) => String(cell ?? "").padEnd(colWidths[i], " "))
+      .join(" | ") +
+    " |";
+
+  // Create the separator row
+  const sep = "|-" + colWidths.map((w) => "-".repeat(w)).join("-|-") + "-|";
+
+  // Print header, separator, and body
+  const lines = [printRow(header), sep, ...body.map(printRow)];
+
+  return lines.join("\n");
+}

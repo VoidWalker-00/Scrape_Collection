@@ -1,6 +1,9 @@
 {
   "dependencies": {
+    "exceljs": "^4.4.0",
+    "net": "^1.0.2",
     "ollama": "^0.5.16",
     "puppeteer": "^24.12.1"
-  }
+  },
+  "type": "module"
 }

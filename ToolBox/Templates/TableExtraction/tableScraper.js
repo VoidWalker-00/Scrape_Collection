@@ -1,26 +1,20 @@
 import puppeteer from "puppeteer";
-import path from "path";
-import { generateProjectName } from "./misc.js";
+import printTable from "./misc.js";
 
 export class TableScraper {
   // 1. GettingReady
-  async gettingReady(url, selectors) {
-    console.log(`[GettingReady] Initializing with URL: ${url}`);
+  constructor(url, selector, projectName, logger) {
+    this.logger = logger || { info: () => {}, warn: () => {}, error: () => {} };
+
     this.url = url;
-    this.selectors = selectors;
-    this.projectName = generateProjectName(
-      path.join(process.cwd(), "Storage/Database"),
-      url,
-    );
+    this.selectors = selector;
+    this.projectName = projectName;
     this.browser = null;
-    this.exportPath = path.join(process.cwd(), "Storage/Database");
-    this.logPath = path.join(process.cwd(), "Storage/Logs");
-    console.log(`[GettingReady] Project initialized as: ${this.projectName}`);
   }
 
   // 2. Starting browser
   async init() {
-    console.log("[Init] Launching Puppeteer browser...");
+    await this.logger.info("[INFO] [Init] Launching Puppeteer browser...");
     this.browser = await puppeteer.launch({
       headless: true,
       defaultViewport: {
@@ -29,99 +23,110 @@ export class TableScraper {
       },
     });
     const page = await this.browser.newPage();
-    console.log("[Init] Browser launched and page created.");
+    await this.logger.info("[INFO] [Init] Browser launched and page created.");
     return page;
   }
 
   // 3. Close browser
   async close() {
     if (this.browser) {
-      console.log("[Close] Closing browser...");
+      await this.logger.info("[INFO] [Close] Closing browser...");
       await this.browser.close();
-      console.log("[Close] Browser closed.");
+      await this.logger.info("[INFO] [Close] Browser closed.");
     }
   }
 
   // 4. Goto Next Page
   async goto(url, page) {
-    console.log(`[Goto] Navigating to: ${url}`);
+    await this.logger.info(`[Goto] Navigating to: ${url}`);
     await page.goto(url);
-    console.log(`[Goto] Navigation complete.`);
+    await this.logger.info(`[Goto] Navigation complete.`);
   }
 
   // 5. Extract table
   async getTable(page) {
-    console.log("[GetTable] Starting table extraction...");
-    const data = await page.evaluate((selector) => {
-      const table = document.querySelector(selector.table);
-      if (!table) {
-        console.warn("[GetTable] Table not found!");
-        return null;
+    await this.logger.info("[INFO] [GetTable] Starting table extraction...");
+
+    try {
+      const data = await page.evaluate(async (selector) => {
+        const table = document.querySelector(selector.table);
+        if (!table) {
+          await this.logger.warn("[WARN] [GetTable] Table not found!");
+          return null;
+        }
+
+        const headerEls = table
+          .querySelector(selector.head)
+          .querySelectorAll(selector.headerSelector);
+
+        const header = Array.from(headerEls).map((el) => el.textContent.trim());
+
+        const tbody = table.querySelector(selector.tbody);
+        const rows = Array.from(tbody.querySelectorAll(selector.row));
+        const body = rows.map((row) => {
+          const cells = Array.from(row.querySelectorAll(selector.cellSelector));
+          return cells.map((cell) => cell.textContent.trim());
+        });
+
+        return { header: header, body: body };
+      }, this.selectors);
+
+      if (data) {
+        await this.logger.info(
+          `[GetTable] Extracted Header: ${JSON.stringify(data.header)}`,
+        );
+        await this.logger.info(`[GetTable] Extracted ${data.body.length} rows`);
+        await this.logger.info("[INFO] [Table Body]:\n ", data.body);
+        return data;
       }
-
-      const headerEls = table
-        .querySelector(selector.head)
-        .querySelectorAll(selector.headerSelector);
-
-      const header = Array.from(headerEls).map((el) => el.textContent.trim());
-
-      const tbody = table.querySelector(selector.tbody);
-      const rows = Array.from(tbody.querySelectorAll(selector.row));
-      const body = rows.map((row) => {
-        const cells = Array.from(row.querySelectorAll(selector.cellSelector));
-        return cells.map((cell) => cell.textContent.trim());
-      });
-
-      return { header: header, body: body };
-    }, this.selectors);
-
-    if (data) {
-      console.log(
-        `[GetTable] Extracted Header: ${JSON.stringify(data.header)}`,
-      );
-      console.log(`[GetTable] Extracted ${data.body.length} rows`);
-      console.log("[Table Body]:\n ", data.body);
-      return data;
+    } catch (err) {
+      await this.logger.error("[ERROR] [GetTable] Error:", err);
+      return null;
     }
-    return null;
   }
   async getNextURL(page) {
-    console.log("[getNextURL] Called");
+    await this.logger.info("[INFO] [getNextURL] Called");
 
-    const nextURL = await page.evaluate((selector) => {
-      const nextLink = document.querySelector(selector.nextLink);
-      if (!nextLink) {
-        console.warn("[getNextURL] Next link not found!");
-        return null;
-      }
-      return nextLink.getAttribute("href");
-    }, this.selectors);
+    try {
+      const nextURL = await page.evaluate(async (selector) => {
+        const nextLink = document.querySelector(selector.nextLink);
+        if (!nextLink) {
+          await this.logger.warn("[WARN] [getNextURL] Next link not found!");
+          return null;
+        }
+        return nextLink.getAttribute("href");
+      }, this.selectors);
 
-    console.log("[getNextURL] Returning:", nextURL);
-    return nextURL;
+      await this.logger.info("[INFO] [getNextURL] Returning:", nextURL);
+      return nextURL;
+    } catch (err) {
+      await this.logger.error("[ERROR] [getNextURL] Error:", err);
+      return null;
+    }
   }
 
   async extract() {
-    console.log("[extract] Extraction started");
+    await this.logger.info("[INFO] [extract] Extraction started");
+
     const page = await this.init();
     await this.goto(this.url, page);
+
     let result = await this.getTable(page);
     const nextURL = await this.getNextURL(page);
-    console.log(result.header);
-    console.log(result.body);
+
     while (nextURL) {
       await this.goto(nextURL);
       const body = await this.getTable().body;
       result.body.push(...body);
 
-      console.log(body);
-
       nextURL = await this.getNextURL();
     }
 
     await this.close();
+    const tableString = printTable(result.header, result.body);
+    await this.logger.socketClient.send(tableString + "\n");
 
-    console.log("[extract] Extraction finished, result:", result);
+    await this.logger.info("[INFO] [extract] Extraction finished");
     return result;
   }
 }
