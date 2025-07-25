@@ -1,0 +1,9 @@
+{
+  "table": "table.datatable",
+  "head": "thead",
+  "headerSelector": "th",
+  "tbody": "tbody",
+  "row": "tr",
+  "cellSelector": "td",
+  "nextLink": null
+}

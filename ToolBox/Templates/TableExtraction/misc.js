@@ -1,6 +1,7 @@
 import fs from "fs";
 import path from "path";
 import { URL } from "url";
+import { Workbook } from "exceljs";
 
 export function generateProjectName(baseDir, url) {
   // Sanitize URL into name
@@ -55,4 +56,45 @@ export default function printTable(header, body) {
   const lines = [printRow(header), sep, ...body.map(printRow)];
 
   return lines.join("\n");
+}
+
+export class ExcelWriter {
+  constructor(filePath) {
+    this.workbook = new Workbook();
+    this.worksheet = this.workbook.addWorksheet("Sheet1");
+    this.filePath = filePath;
+  }
+
+  async write() {
+    await this.workbook.xlsx.writeFile(this.filePath);
+  }
+
+  async createTable(header, body) {
+    const table = this.worksheet.addTable({
+      name: "Table",
+      ref: "A1",
+      headerRow: true,
+      columns: header.map((col) => ({ name: col })),
+      rows: body,
+    });
+
+    await this.write();
+    return table;
+  }
+
+  async addRows(table, rows) {
+    table.addRow(rows);
+    table.commit();
+
+    await this.write();
+  }
+}
+
+export function sendTableMeta(socketClient, { filePath, url, ...extra }) {
+  const payload = {
+    filePath,
+    url,
+    ...extra,
+  };
+  socketClient.send(JSON.stringify(payload) + "\n");
 }

@@ -33,8 +33,20 @@ export class SocketServer {
     });
   }
 
-  send(message) {
-    console.log("[SocketClient] Sending message:", JSON.stringify(message));
+  send(message, type, level = null) {
+    if (level == null) {
+      message = JSON.stringify({
+        Type: type,
+        Message: message,
+      });
+    }
+    message = JSON.stringify({
+      Type: type,
+      Level: level,
+      Message: message,
+    });
+
+    console.log("[SocketClient] Sending message:", message);
     if (this.connected) {
       this.socket.write(message);
     } else {
@@ -74,7 +86,7 @@ export class Logger {
     }
     // Socket logging (sync for Node's net.write, but could be made more robust)
     if (this.socketClient) {
-      this.socketClient.send(logStr + "\n");
+      this.socketClient.send("Log", logStr + "\n", level);
     }
     // File logging (async for safety)
     if (this.fileStream && !this.fileStream.writableEnded) {

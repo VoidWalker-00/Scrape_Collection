@@ -1,5 +1,5 @@
 import puppeteer from "puppeteer";
-import printTable from "./misc.js";
+import { printTable, ExcelWriter } from "./misc.js";
 
 export class TableScraper {
   // 1. GettingReady
@@ -105,8 +105,10 @@ export class TableScraper {
     }
   }
 
-  async extract() {
+  async extract(databasePath) {
     await this.logger.info("[INFO] [extract] Extraction started");
+
+    const writer = new ExcelWriter(databasePath);
 
     const page = await this.init();
     await this.goto(this.url, page);
@@ -114,19 +116,21 @@ export class TableScraper {
     let result = await this.getTable(page);
     const nextURL = await this.getNextURL(page);
 
+    const table = await writer.createTable(result.header, result.body);
+
     while (nextURL) {
       await this.goto(nextURL);
       const body = await this.getTable().body;
       result.body.push(...body);
 
+      await writer.addRows(table, body);
+
       nextURL = await this.getNextURL();
     }
 
     await this.close();
-    const tableString = printTable(result.header, result.body);
-    await this.logger.socketClient.send(tableString + "\n");
-
     await this.logger.info("[INFO] [extract] Extraction finished");
+
     return result;
   }
 }
